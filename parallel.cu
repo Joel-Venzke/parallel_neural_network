@@ -1,5 +1,8 @@
+#include <stdio.h>
+#include "cuda.h"
+
 int main(int argc, char const *argv[])
 {
-	/* code */
+	printf("HI\n");
 	return 0;
 }
