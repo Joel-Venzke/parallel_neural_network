@@ -1,6 +1,6 @@
 all: 
 
-NC=NVCC
+NC=nvcc
 NCFLAGS=-O3 -arch=sm_30
 CC=gcc
 CCFLAGS=
