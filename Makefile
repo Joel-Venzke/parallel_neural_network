@@ -26,5 +26,15 @@ serial: serial.cpp
 plot: parallel.dat serial.dat plot.gp
 	$(GP) $(GPFLAGS) plot.gp
 
+reset: resetParallelData resetSerialData
+	
+resetParallelData: 
+	rm parallel.dat
+	echo "# NumberOfElements	time">parallel.dat
+
+resetSerialData: 
+	rm serial.dat
+	echo "# NumberOfElements	time">serial.dat
+
 clean:
 	rm serial parallel
