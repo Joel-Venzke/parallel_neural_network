@@ -17,10 +17,10 @@ parallel.dat:
 serial.dat:
 	./serial
 
-parallel:
+parallel: parallel.cu
 	$(NC) $(NCFLAGS) parallel.cu -o parallel
 
-serial:
+serial: serial.cpp
 	$(CC) $(CCFLAGS) serial.cpp -o serial
 
 plot: parallel.dat serial.dat
