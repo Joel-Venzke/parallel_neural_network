@@ -3,7 +3,7 @@
 int main(int argc, char const *argv[])
 {
 	FILE *fp;
-	fp=fopen("serial.dat", "a");
+	fp=fopen("data/serial.dat", "a");
 	fprintf(fp, "1\t23\n");
     /* CODE */
 

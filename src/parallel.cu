@@ -4,7 +4,7 @@
 int main(int argc, char const *argv[])
 {
 	FILE *fp;
-    fp=fopen("parallel.dat", "a");
+    fp=fopen("data/parallel.dat", "a");
     fprintf(fp, "1\t20\n");
     /* CODE */
 

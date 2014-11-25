@@ -1,4 +1,4 @@
-all: plot
+all: src/plot
 
 NC=nvcc
 NCFLAGS=-O3 -arch=sm_30
@@ -7,34 +7,34 @@ CCFLAGS=
 GP=gnuplot
 GPFLAGS=
 
-test: parallel serial
-	./parallel
-	./serial
+test: bin/parallel bin/serial
+	bin/parallel
+	bin/serial
 
-parallel.dat: parallel
-	./parallel
+data/parallel.dat: bin/parallel
+	bin/parallel
 
-serial.dat: serial
-	./serial
+data/serial.dat: bin/serial
+	bin/serial
 
-parallel: parallel.cu
-	$(NC) $(NCFLAGS) parallel.cu -o parallel
+bin/parallel: src/parallel.cu
+	$(NC) $(NCFLAGS) src/parallel.cu -o bin/parallel
 
-serial: serial.cpp
-	$(CC) $(CCFLAGS) serial.cpp -o serial
+bin/serial: src/serial.cpp
+	$(CC) $(CCFLAGS) src/serial.cpp -o bin/serial
 
-plot: parallel.dat serial.dat plot.gp
-	$(GP) $(GPFLAGS) plot.gp
+src/plot: data/parallel.dat data/serial.dat src/plot.gp
+	$(GP) $(GPFLAGS) src/plot.gp
 
 reset: resetParallelData resetSerialData
 	
 resetParallelData: 
-	rm parallel.dat
-	echo "# NumberOfElements	time">parallel.dat
+	rm data/parallel.dat
+	echo "# NumberOfElements	time">data/parallel.dat
 
 resetSerialData: 
-	rm serial.dat
-	echo "# NumberOfElements	time">serial.dat
+	rm data/serial.dat
+	echo "# NumberOfElements	time">data/serial.dat
 
 clean:
-	rm serial parallel
+	rm bin/*
