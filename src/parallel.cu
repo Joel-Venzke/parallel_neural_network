@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include "cuda.h"
+#include <time.h>
+#define SIZE 10000
 
 int main(int argc, char const *argv[])
 {
 	FILE *fp;
     fp=fopen("data/parallel.dat", "a");
-    fprintf(fp, "1\t20\n");
     clock_t t;
 	t = clock();
 
