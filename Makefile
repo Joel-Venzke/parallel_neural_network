@@ -1,18 +1,24 @@
 all: 
 
 NC=NVCC
+NCFLAGS=-O3 -arch=sm_30
 CC=gcc
+CCFLAGS=
 GP=gnuplot
+GPFLAGS=
 
 test: 
 	./parallel
 	./serial
 
-parallel.cu: 
-	$(NC) -O3 -arch=sm_30 parallel.cu -o parallel
+parallel:
+	$(NC) $(NCFLAGS) parallel.cu -o parallel
 
-serial.cpp: 
-	$(CC) serial.cpp -o serial
+serial:
+	$(CC) $(CCFLAGS) serial.cpp -o serial
 
-plot.gp: 
-	$(GP) plot.gp
+plot: 
+	$(GP) $(GPFLAGS) plot.gp
+
+clean:
+	rm serial parallel *.jpg
