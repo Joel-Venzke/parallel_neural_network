@@ -27,4 +27,4 @@ plot: parallel.dat serial.dat plot.gp
 	$(GP) $(GPFLAGS) plot.gp
 
 clean:
-	rm serial parallel *.jpg
+	rm serial parallel
