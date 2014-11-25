@@ -11,13 +11,19 @@ test:
 	./parallel
 	./serial
 
+parallel.dat: 
+	./parallel
+
+serial.dat:
+	./serial
+
 parallel:
 	$(NC) $(NCFLAGS) parallel.cu -o parallel
 
 serial:
 	$(CC) $(CCFLAGS) serial.cpp -o serial
 
-plot: 
+plot: parallel.dat serial.dat
 	$(GP) $(GPFLAGS) plot.gp
 
 clean:
