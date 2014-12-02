@@ -3,8 +3,14 @@
 #include <time.h>
 #include <math.h>
 #define SIZE 10
-#define LAYERS 2
+#define HIDDINLAYERS 2
+#define POINTS 100
+#define ATTRIBUTES 7
 
+
+double g(double value) {
+	return 1.0/(1.0+exp(-value));
+}
 
 void gLayerBack(double *weights, double *values, double *outputs, int weightsLen, int outputsLen){
 	for (int i = 0; i < outputsLen; ++i)
@@ -17,21 +23,20 @@ void gLayerBack(double *weights, double *values, double *outputs, int weightsLen
 	}
 }
 
-void gLayer(double *weights, double *values, double *outputs, int *in, int weightsLen, int outputsLen){
+void gLayer(double *weights, double *values, double *outputs, double *in, double *bias, int weightsLen, int outputsLen){
 	for (int i = 0; i < outputsLen; ++i)
 	{
-		outputs[i] = 0;
+		in[i]=0;
 		for (int j = 0; j < weightsLen; ++j)
 		{
-			in[i] = values[j]*weights[j];
-			outputs[i]+=g(in[i]);
+			in[i]+= values[j]*weights[j+SIZE*i];
 		}
+		in[i] += bias[i];
+		outputs[i] =g(in[i]);
 	}
 }
 
-double g(double value) {
-	return 1.0/(1.0+exp(-value));
-}
+
 
 double gPrime(double value){
 	double a = g(value);
@@ -51,31 +56,52 @@ int main(int argc, char const *argv[])
 	clock_t t;
 	t = clock();
 	srand (time(NULL));
-	double weights[LAYERS][SIZE];
-	double values[LAYERS][SIZE];
-	double in[LAYERS][SIZE];
-	double deltaj;
+	double weights[HIDDINLAYERS+1][SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
+	double bias[HIDDINLAYERS+1][SIZE]; // all nodes other than the input layer
+	double values[HIDDINLAYERS+2][SIZE]; // holds the results of the last input
+	double in[HIDDINLAYERS+1][SIZE]; // values before squashing
+	double delta[HIDDINLAYERS+1][SIZE]; // error
+	double dataSet[POINTS][ATTRIBUTES]; // holds datafile
+	double learningRate = 0.3;
+	double learningTime = 5000;
+
+	/**********************************************/
+	/*                                            */
+	/* Read in Data Set 						  */
+	/*                                            */
+	/**********************************************/
+
 
 	// initialize weights
-	for(int i=0; i<LAYERS; i++) {
+	for(int i=0; i<HIDDINLAYERS+1; i++) {
 		for (int j = 0; j < SIZE; ++j)
 		{
-			weights[i][j] = ((double) rand() / (RAND_MAX/2))-1
+			for (int l = 0; l < SIZE; ++l)
+			{
+				weights[i][j+SIZE*l] = ((double) rand() / (RAND_MAX/2))-1;
+			}
+			bias[i][j] = ((double) rand() / (RAND_MAX/2))-1;
 		}	
 	}
 
 
 	// forward prop
-	double in;
 	int outputLen=SIZE;
-	for (int i = 1; i < LAYERS; ++i)
+	int weightsLen=SIZE*SIZE;
+	/**********************************************/
+	/*                                            */
+	/* Set value[0] to the current input data set */
+	/*                                            */
+	/**********************************************/
+	for (int i = 0; i < HIDDINLAYERS+1; ++i)
 	{
-		if (i = LAYERS-1) outputsLen =1;
- 		gLayer(weights[i], value[i], values[i+1], in[i], SIZE, outputsLen);
+		if (i == HIDDINLAYERS) outputLen = 1;
+		if (i == 0) weightsLen = ATTRIBUTES*SIZE;
+ 		gLayer(weights[i], values[i], values[i+1], in[i], bias[i], SIZE*SIZE, outputLen);
 	}
 
 	// back prop
-	deltaj = gPrime(in[LAYERS-1][0])(data[i]); // loop over all values in data set
+	//delta = gPrime(in[HIDDINLAYERS-1][0])*(dataSet[i]); // loop over all values in data set
 
 
 	// update weights

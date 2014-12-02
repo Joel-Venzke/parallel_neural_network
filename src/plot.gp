@@ -1,4 +1,4 @@
-set term jpeg
+set term jpeg size 900,500
 set output "Results.jpg"
 set title "Comparing Serial vs Parallel"
 set xlabel "Number Of Elelments"
