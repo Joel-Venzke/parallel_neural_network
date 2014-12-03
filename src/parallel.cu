@@ -8,7 +8,16 @@
 #define POINTS 583
 #define TEST 100
 #define ATTRIBUTES 10
-
+static void HandleError( cudaError_t err,
+                         const char *file,
+                         int line ) {
+    if (err != cudaSuccess) {
+        printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+                file, line );
+        exit( EXIT_FAILURE );
+    }
+}
+#define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
 __device__ __host__ float g(float value) {
 	return 1.0/(1.0+exp(-value));
@@ -71,14 +80,15 @@ int main(int argc, char const *argv[])
 	FILE *fp=NULL, *inFile=NULL;
 	clock_t t;
 	srand (time(NULL));
-	float weights[HIDDINLAYERS+1][SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
-	float bias[HIDDINLAYERS+1][SIZE]; // all nodes other than the input layer
-	float values[HIDDINLAYERS+2][SIZE]; // holds the results of the last input
-	float in[HIDDINLAYERS+1][SIZE]; // values before squashing
-	float delta[HIDDINLAYERS+1][SIZE]; // error
-	float dataSet[POINTS+TEST][ATTRIBUTES]; // holds datafile
+	float weights[(HIDDINLAYERS+1)*SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
+	float bias[(HIDDINLAYERS+1)*SIZE]; // all nodes other than the input layer
+	float values[(HIDDINLAYERS+2)*SIZE]; // holds the results of the last input
+	float in[(HIDDINLAYERS+1)*SIZE]; // values before squashing
+	float delta[(HIDDINLAYERS+1)*SIZE]; // error
+	float dataSet[(POINTS+TEST)*ATTRIBUTES]; // holds datafile
 	float learningRate = 0.3;
 	float learningTime = 50;
+	float *weights_d, *bias_d, *values_d, *in_d, *delta_d, *dataSet_d;
 
 	// read in data
 	inFile=fopen("data/breast-cancer-wisconsin.data","r");
@@ -139,16 +149,22 @@ int main(int argc, char const *argv[])
 	//=========================================================================================================================================
 	// allocate space on device
 
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
+	HANDLE_ERROR(cudaMalloc((void **) &weights_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE));
+	HANDLE_ERROR(cudaMalloc((void **) &bias_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
+	HANDLE_ERROR(cudaMalloc((void **) &values_d, sizeof(float)*(HIDDINLAYERS+2)*SIZE));
+	HANDLE_ERROR(cudaMalloc((void **) &in_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
+	HANDLE_ERROR(cudaMalloc((void **) &delta_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
+	HANDLE_ERROR(cudaMalloc((void **) &dataSet_d, sizeof(float)*(POINTS+TEST)*ATTRIBUTES));
+	
 	// mem copy
+	HANDLE_ERROR(cudaMemcpy(weights_d, weights, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(bias_d, bias, sizeof(float)*(HIDDINLAYERS+1)*SIZE, cudaMemcpyHostToDevice));
+	HANDLE_ERROR(cudaMemcpy(dataSet_d, dataSet, sizeof(float)*(POINTS+TEST)*ATTRIBUTES, cudaMemcpyHostToDevice));
 
 
+	// initailize kernal launches
+	dim3 dimBlock(32,1);
+    dim3 dimGrid (32,1);
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
 		if (timeStep%50==0) printf("%d\n", timeStep);
 		for (int point=0; point<POINTS; point++) {
@@ -173,7 +189,7 @@ int main(int argc, char const *argv[])
 				//=========================================================================================================================================
 				//=========================================================================================================================================
 				// set up launch
-				gLayer<<<>>>(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+				gLayer<<<dimGrid,dimBlock>>>(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
 			}
 
 			// back prop 
@@ -199,7 +215,7 @@ int main(int argc, char const *argv[])
 				//=========================================================================================================================================
 				//=========================================================================================================================================
 				// set up launch
-				gLayerBack<<<>>>(weights[i+1], delta[i+1], delta[i], in[i], inputLen, outputLen);
+				gLayerBack<<<dimGrid,dimBlock>>>(weights[i+1], delta[i+1], delta[i], in[i], inputLen, outputLen);
 			}
 
 			// update weights
@@ -215,16 +231,22 @@ int main(int argc, char const *argv[])
 				//=========================================================================================================================================
 				//=========================================================================================================================================
 				// set up launch
-				updateWeight<<<>>>(weights[i], values[i], delta[i], learningRate, inputLen, outputLen);
+				updateWeight<<<dimGrid,dimBlock>>>(weights[i], values[i], delta[i], learningRate, inputLen, outputLen);
 			}
 		}
 	}
 	// mem copy 
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
+	HANDLE_ERROR(cudaMemcpy(weights, weights_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE, cudaMemcpyDeviceToHost));
+	HANDLE_ERROR(cudaMemcpy(bias, bias_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE, cudaMemcpyDeviceToHost));
 
+
+	// free pointers
+	HANDLE_ERROR(cudaFree(weights_d));
+	HANDLE_ERROR(cudaFree(bias_d));
+	HANDLE_ERROR(cudaFree(values_d));
+	HANDLE_ERROR(cudaFree(in_d));
+	HANDLE_ERROR(cudaFree(delta_d));
+	HANDLE_ERROR(cudaFree(dataSet_d));
     t = clock() - t;
 
     // save runtime
@@ -248,15 +270,5 @@ int main(int argc, char const *argv[])
 	}
 	correct = ((float) correct/TEST);
 	printf("%f\n", correct);
-	// for(int i=0; i<HIDDINLAYERS+1; i++) {
-	// 	for (int j = 0; j < SIZE; ++j)
-	// 	{
-	// 		for (int l = 0; l < SIZE; ++l)
-	// 		{
-	// 			printf("%f ", weights[i][l+SIZE*j]);
-	// 		}
-	// 		printf("\n");
-	// 	}	
-	// }
 	return 0;
 }
