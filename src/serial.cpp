@@ -4,8 +4,8 @@
 #include <math.h>
 #define SIZE 10
 #define HIDDINLAYERS 2
-#define POINTS 100
-#define ATTRIBUTES 7
+#define POINTS 683
+#define ATTRIBUTES 10
 
 
 double g(double value) {
@@ -51,10 +51,10 @@ void updateWeight(){
 
 int main(int argc, char const *argv[])
 {
-	FILE *fp;
+	FILE *fp=NULL, *inFile=NULL;
+	inFile=fopen("data/breast-cancer-wisconsin.data","r");
 	fp=fopen("data/serial.dat", "a");
 	clock_t t;
-	t = clock();
 	srand (time(NULL));
 	double weights[HIDDINLAYERS+1][SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
 	double bias[HIDDINLAYERS+1][SIZE]; // all nodes other than the input layer
@@ -63,13 +63,22 @@ int main(int argc, char const *argv[])
 	double delta[HIDDINLAYERS+1][SIZE]; // error
 	double dataSet[POINTS][ATTRIBUTES]; // holds datafile
 	double learningRate = 0.3;
-	double learningTime = 5000;
+	double learningTime = 50;
 
-	/**********************************************/
-	/*                                            */
-	/* Read in Data Set 						  */
-	/*                                            */
-	/**********************************************/
+	for (int i = 0; i < POINTS; ++i)
+	{
+		for (int j = 0; j < ATTRIBUTES; ++j)
+		{
+			fscanf(inFile,"%lf",&(dataSet[i][j]));
+			if (j==ATTRIBUTES-1){
+				if (dataSet[i][j]==4.0) dataSet[i][j]=1.0;
+				else dataSet[i][j] = 0.0;
+			} 
+			printf("%2.1f ",dataSet[i][j]);
+		}
+		printf("\n");
+	}
+	fclose(inFile);
 
 
 	// initialize weights
@@ -84,28 +93,43 @@ int main(int argc, char const *argv[])
 		}	
 	}
 
-
-	// forward prop
 	int outputLen=SIZE;
 	int weightsLen=SIZE*SIZE;
-	/**********************************************/
-	/*                                            */
-	/* Set value[0] to the current input data set */
-	/*                                            */
-	/**********************************************/
-	for (int i = 0; i < HIDDINLAYERS+1; ++i)
-	{
-		if (i == HIDDINLAYERS) outputLen = 1;
-		if (i == 0) weightsLen = ATTRIBUTES*SIZE;
- 		gLayer(weights[i], values[i], values[i+1], in[i], bias[i], SIZE*SIZE, outputLen);
+	printf("Here\n");
+
+	t = clock();
+	for (int timeStep=0; timeStep<learningTime; timeStep++) {
+		printf("%d\n", timeStep);
+		for (int point=0; point<POINTS; point++) {
+			outputLen=SIZE;
+			weightsLen=SIZE*SIZE;
+
+			// get current data set
+			for (int i=0; i<ATTRIBUTES-1; i++) {
+				values[0][i] = dataSet[point][i];
+			}
+
+			// forward prop
+			for (int i = 0; i < HIDDINLAYERS+1; ++i)
+			{
+				if (i == HIDDINLAYERS) outputLen = 1; // output layer
+				if (i == 0) weightsLen = (ATTRIBUTES-1)*SIZE; // input layer
+				gLayer(weights[i], values[i], values[i+1], in[i], bias[i], SIZE*SIZE, outputLen);
+			}
+
+			// back prop
+			// error in output layer
+			delta[HIDDINLAYERS][0] = gPrime(in[HIDDINLAYERS][0])*(dataSet[point][ATTRIBUTES-1]-values[HIDDINLAYERS+1][0]);
+
+			// error in pervious layers
+			for (int i = HIDDINLAYERS-1; i < -1; i--)
+			{
+				
+			}
+
+			// update weights
+		}
 	}
-
-	// back prop
-	//delta = gPrime(in[HIDDINLAYERS-1][0])*(dataSet[i]); // loop over all values in data set
-
-
-	// update weights
-
     t = clock() - t;
     fprintf (fp, "%d\t%f\n", SIZE,((float)t)/CLOCKS_PER_SEC);
     fclose(fp);
