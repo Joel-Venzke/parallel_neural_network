@@ -131,7 +131,7 @@ int main(int argc, char const *argv[])
 
 	t = clock();
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
-		// printf("%d\n", timeStep);
+		if (timeStep%50==0) printf("%d\n", timeStep);
 		for (int point=0; point<POINTS; point++) {
 			
 
