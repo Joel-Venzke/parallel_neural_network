@@ -4,12 +4,18 @@
 #include <math.h>
 #define SIZE 200
 #define HIDDINLAYERS 2
-#define POINTS 683
+#define POINTS 583
+#define TEST 100
 #define ATTRIBUTES 10
 
 
 float g(float value) {
 	return 1.0/(1.0+exp(-value));
+}
+
+float gSquash(float value) {
+	if (value<0.5) return 0.0;
+	else return 1.0;
 }
 
 float gPrime(float value){
@@ -69,13 +75,13 @@ int main(int argc, char const *argv[])
 	float values[HIDDINLAYERS+2][SIZE]; // holds the results of the last input
 	float in[HIDDINLAYERS+1][SIZE]; // values before squashing
 	float delta[HIDDINLAYERS+1][SIZE]; // error
-	float dataSet[POINTS][ATTRIBUTES]; // holds datafile
+	float dataSet[POINTS+TEST][ATTRIBUTES]; // holds datafile
 	float learningRate = 0.3;
 	float learningTime = 50;
 
 	// read in data
 	inFile=fopen("data/breast-cancer-wisconsin.data","r");
-	for (int i = 0; i < POINTS; ++i)
+	for (int i = 0; i < POINTS+TEST; ++i)
 	{
 		for (int j = 0; j < ATTRIBUTES; ++j)
 		{
@@ -96,19 +102,36 @@ int main(int argc, char const *argv[])
 			for (int l = 0; l < SIZE; ++l)
 			{
 				weights[i][l+SIZE*j] = ((float) rand() / (RAND_MAX/2))-1;
-				printf("%f ", weights[i][l+SIZE*j]);
+				// printf("%f ", weights[i][l+SIZE*j]);
 			}
-			printf("\n");
+			// printf("\n");
 			bias[i][j] = ((float) rand() / (RAND_MAX/2))-1;
 		}	
 	}
-
 	int outputLen=SIZE;
 	int inputLen=SIZE;
+	float correct = 0.0;
+	for (int j=POINTS; j<TEST+POINTS; j++){
+		for (int i=0; i<ATTRIBUTES-1; i++) {
+			values[0][i] = dataSet[j][i];
+		}
+		for (int i = 0; i < HIDDINLAYERS+1; ++i)
+		{
+			outputLen=SIZE;
+			inputLen=SIZE;
+			if (i == HIDDINLAYERS) outputLen = 1; // result layer
+			if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
+			gLayer(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+		}
+		if (dataSet[j][ATTRIBUTES-1]==gSquash(values[HIDDINLAYERS+1][0])) correct += 1;
+	}
+	correct = ((float) correct/TEST);
+	printf("%f\n", correct);
+
 
 	t = clock();
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
-		printf("%d\n", timeStep);
+		// printf("%d\n", timeStep);
 		for (int point=0; point<POINTS; point++) {
 			
 
@@ -159,16 +182,32 @@ int main(int argc, char const *argv[])
 	fp=fopen("data/serial.dat", "a");
     fprintf (fp, "%d\t%f\n", SIZE,((float)t)/CLOCKS_PER_SEC);
     fclose(fp);
-
-    for(int i=0; i<HIDDINLAYERS+1; i++) {
-		for (int j = 0; j < SIZE; ++j)
+    correct = 0.0;
+	for (int j=POINTS; j<TEST+POINTS; j++){
+		for (int i=0; i<ATTRIBUTES-1; i++) {
+			values[0][i] = dataSet[j][i];
+		}
+		for (int i = 0; i < HIDDINLAYERS+1; ++i)
 		{
-			for (int l = 0; l < SIZE; ++l)
-			{
-				printf("%f ", weights[i][l+SIZE*j]);
-			}
-			printf("\n");
-		}	
+			outputLen=SIZE;
+			inputLen=SIZE;
+			if (i == HIDDINLAYERS) outputLen = 1; // result layer
+			if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
+			gLayer(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+		}
+		if (dataSet[j][ATTRIBUTES-1]==gSquash(values[HIDDINLAYERS+1][0])) correct += 1;
 	}
+	correct = ((float) correct/TEST);
+	printf("%f\n", correct);
+ //    for(int i=0; i<HIDDINLAYERS+1; i++) {
+	// 	for (int j = 0; j < SIZE; ++j)
+	// 	{
+	// 		for (int l = 0; l < SIZE; ++l)
+	// 		{
+	// 			printf("%f ", weights[i][l+SIZE*j]);
+	// 		}
+	// 		printf("\n");
+	// 	}	
+	// }
 	return 0;
 }
