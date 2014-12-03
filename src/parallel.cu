@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define SIZE 200
+#define SIZE 150
 #define HIDDINLAYERS 2
 #define POINTS 583
 #define TEST 100
@@ -180,7 +180,7 @@ int main(int argc, char const *argv[])
     t = clock() - t;
 
     // save runtime
-	fp=fopen("data/serial.dat", "a");
+	fp=fopen("data/parallel.dat", "a");
     fprintf (fp, "%d\t%f\n", SIZE,((float)t)/CLOCKS_PER_SEC);
     fclose(fp);
     correct = 0.0;

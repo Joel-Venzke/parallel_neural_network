@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define SIZE 200
+#define SIZE 150
 #define HIDDINLAYERS 2
 #define POINTS 583
 #define TEST 100

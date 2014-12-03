@@ -3,7 +3,7 @@ all: src/plot
 NC=nvcc
 NCFLAGS=-O3 -arch=sm_30
 CC=gcc
-CCFLAGS=
+CCFLAGS=-O3
 GP=gnuplot
 GPFLAGS=
 
@@ -21,9 +21,9 @@ bin/parallel: src/parallel.cu
 	$(NC) $(NCFLAGS) src/parallel.cu -o bin/parallel
 
 bin/serial: src/serial.cpp
-	$(CC) $(CCFLAGS) src/serial.cpp -o bin/serial
+	$(CC)  src/serial.cpp -o bin/serial $(CCFLAGS)
 
-src/plot: data/parallel.dat data/serial.dat src/plot.gp
+src/plot: test  
 	$(GP) $(GPFLAGS) src/plot.gp
 
 reset: resetParallelData resetSerialData
