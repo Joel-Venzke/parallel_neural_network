@@ -37,4 +37,4 @@ resetSerialData:
 	echo "# NumberOfElements	time">data/serial.dat
 
 clean:
-	rm bin/*
+	rm bin/* fit.log
