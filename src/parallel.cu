@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include "cuda.h"
 #include <time.h>
-#define SIZE 10000
+#define SIZE 20
 
 int main(int argc, char const *argv[])
 {
