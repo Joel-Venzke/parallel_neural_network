@@ -19,19 +19,21 @@ static void HandleError( cudaError_t err,
 }
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 
+// various squashing functions 
 __device__ __host__ float g(float value) {
 	return 1.0/(1.0+exp(-value));
 }
-
 __device__ __host__ float gSquash(float value) {
 	if (value<0.5) return 0.0;
 	else return 1.0;
 }
-
 __device__ __host__ float gPrime(float value){
 	float a = g(value);
 	return a;
 }
+
+// used for testing before and after training
+// preforms forward propagation 
 __host__ void gLayer2(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
 	for (int i = 0; i < outputsLen; ++i)
 	{
@@ -44,6 +46,8 @@ __host__ void gLayer2(float *weights, float *values, float *outputs, float *in, 
 		outputs[i] =g(in[i]);
 	}
 }
+
+// preforms back propagation on gpu
 __global__ void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inputLen, int outputsLen){
 	float temp;
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
@@ -60,6 +64,7 @@ __global__ void gLayerBack(float *weights, float *delta, float *outputs, float *
 	}
 }
 
+// preforms forward propagation on gpu
 __global__ void gLayer(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
 	float temp;
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
@@ -75,6 +80,7 @@ __global__ void gLayer(float *weights, float *values, float *outputs, float *in,
 	}
 }
 
+// updates weights once deltas have been calculated
 __global__ void updateWeight(float *weights, float *values, float *delta, float learningRate, int inputLen, int outputLen){
 	int i = threadIdx.x + blockDim.x * blockIdx.x;
 	int j = threadIdx.y + blockDim.y * blockIdx.y;
@@ -90,10 +96,12 @@ __global__ void updateWeight(float *weights, float *values, float *delta, float 
 	}
 }
 
+// used for prepping for back propagation 
 __global__ void deltaInit(float *delta, float *in, float *dataSet, float *values){
 	delta[0] = gPrime(in[0])*(dataSet[ATTRIBUTES-1]-values[0]);
 }
 
+// used for prepping for forward propagation
 __global__ void valueInit(float *values, float *dataSet, int i){
 	values[i] = dataSet[i];
 }
@@ -136,12 +144,12 @@ int main(int argc, char const *argv[])
 			for (int l = 0; l < SIZE; ++l)
 			{
 				weights[i][l+SIZE*j] = ((float) rand() / (RAND_MAX/2))-1;
-				// printf("%f ", weights[i][l+SIZE*j]);
 			}
-			// printf("\n");
 			bias[i][j] = ((float) rand() / (RAND_MAX/2))-1;
 		}	
 	}
+
+	// check results pre training
 	int outputLen=SIZE;
 	int inputLen=SIZE;
 	float correct = 0.0;
@@ -162,7 +170,7 @@ int main(int argc, char const *argv[])
 	correct = ((float) correct/TEST);
 	printf("%f\n", correct);
 
-	// allocate space on device
+	// allocate/mem copy space on device
 	for (int i = 0; i < (HIDDINLAYERS+1); ++i)
 	{
 		HANDLE_ERROR(cudaMalloc((void **) &weights_d[i], sizeof(float)*SIZE*SIZE));
@@ -183,14 +191,15 @@ int main(int argc, char const *argv[])
 		HANDLE_ERROR(cudaMemcpy(dataSet_d[i], dataSet[i], sizeof(float)*ATTRIBUTES, cudaMemcpyHostToDevice));
 	}
 
-	printf("here\n");
-	// initailize kernal launches
+	// initialize kernel launches
 	dim3 dimBlock1(32,1);
     dim3 dimGrid1(SIZE/32+1,1);
     dim3 dimBlock2(1,1);
     dim3 dimGrid2(1,1);
     dim3 dimBlock3(16,16);
     dim3 dimGrid3(SIZE/16+1,SIZE/16+1);
+
+    // time training
     t = clock();
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
 		
@@ -217,7 +226,7 @@ int main(int argc, char const *argv[])
 			deltaInit<<<dimGrid2,dimBlock2>>>(delta_d[HIDDINLAYERS], in_d[HIDDINLAYERS], dataSet_d[point], values_d[HIDDINLAYERS+1]);
 			HANDLE_ERROR(cudaGetLastError());
 
-			// error in pervious layers
+			// error in previous layers
 			
 			for (int i = HIDDINLAYERS-1; i > -1; i--)
 			{
@@ -232,7 +241,6 @@ int main(int argc, char const *argv[])
 			// update weights
 			for (int i = 0; i < HIDDINLAYERS+1; ++i)
 			{
-				// printf("%d\n", i);
 				outputLen=SIZE; 
 				inputLen=SIZE;
 				if (i == HIDDINLAYERS) outputLen = 1; // result layer
@@ -274,6 +282,8 @@ int main(int argc, char const *argv[])
 	fp=fopen("data/parallel.dat", "a");
     fprintf (fp, "%d\t%f\n", SIZE,((float)t)/CLOCKS_PER_SEC);
     fclose(fp);
+
+    // post training results
     correct = 0.0;
 	for (int j=POINTS; j<TEST+POINTS; j++){
 		for (int i=0; i<ATTRIBUTES-1; i++) {

@@ -12,10 +12,9 @@ float gSquash(float value);
 float gPrime(float value);
 
 
-
+// preforms back propagation and stores error in delta
 void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inputLen, int outputsLen){
 	float temp;
-	// printf("Here\n");
 	for (int i = 0; i < outputsLen; ++i)
 	{
 		temp=0.0;
@@ -25,10 +24,10 @@ void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inp
 		}
 		
 		outputs[i] = gPrime(in[i])*temp;
-		// printf("%f\t%f\t%f\n", temp, in[i], outputs[i]);
 	}
 }
 
+// preforms forward propagation 
 void gLayer(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
 	for (int i = 0; i < outputsLen; ++i)
 	{
@@ -41,19 +40,21 @@ void gLayer(float *weights, float *values, float *outputs, float *in, float *bia
 		outputs[i] =g(in[i]);
 	}
 }
+
+// various Squashing function
 float g(float value) {
 	return 1.0/(1.0+exp(-value));
 }
-
 float gSquash(float value) {
 	if (value<0.5) return 0.0;
 	else return 1.0;
 }
-
 float gPrime(float value){
 	float a = g(value);
 	return a;
 }
+
+// updates weights once deltas are calculated
 void updateWeight(float *weights, float *values, float *delta, float learningRate, int inputLen, int outputLen){
 	for (int i = 0; i < outputLen; ++i)
 	{
@@ -103,12 +104,12 @@ int main(int argc, char const *argv[])
 			for (int l = 0; l < SIZE; ++l)
 			{
 				weights[i][l+SIZE*j] = ((float) rand() / (RAND_MAX/2))-1;
-				// printf("%f ", weights[i][l+SIZE*j]);
 			}
-			// printf("\n");
 			bias[i][j] = ((float) rand() / (RAND_MAX/2))-1;
 		}	
 	}
+
+	// check results of random numbers
 	int outputLen=SIZE;
 	int inputLen=SIZE;
 	float correct = 0.0;
@@ -130,9 +131,9 @@ int main(int argc, char const *argv[])
 	printf("%f\n", correct);
 
 
+	// time training
 	t = clock();
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
-		if (timeStep%50==0) printf("%d\n", timeStep);
 		for (int point=0; point<POINTS; point++) {
 			
 
@@ -142,7 +143,6 @@ int main(int argc, char const *argv[])
 			}
 
 			// forward prop
-			
 			for (int i = 0; i < HIDDINLAYERS+1; ++i)
 			{
 				outputLen=SIZE;
@@ -153,10 +153,10 @@ int main(int argc, char const *argv[])
 			}
 
 			// back prop
-			delta[HIDDINLAYERS][0] = gPrime(in[HIDDINLAYERS][0])*(dataSet[point][ATTRIBUTES-1]-values[HIDDINLAYERS+1][0]); // error in output layer
+			// error in output layer
+			delta[HIDDINLAYERS][0] = gPrime(in[HIDDINLAYERS][0])*(dataSet[point][ATTRIBUTES-1]-values[HIDDINLAYERS+1][0]); 
 
 			// error in pervious layers
-			
 			for (int i = HIDDINLAYERS-1; i > -1; i--)
 			{
 				outputLen=SIZE;
@@ -183,6 +183,8 @@ int main(int argc, char const *argv[])
 	fp=fopen("data/serial.dat", "a");
     fprintf (fp, "%d\t%f\n", SIZE,((float)t)/CLOCKS_PER_SEC);
     fclose(fp);
+
+    // calculate post training percent right
     correct = 0.0;
 	for (int j=POINTS; j<TEST+POINTS; j++){
 		for (int i=0; i<ATTRIBUTES-1; i++) {
@@ -200,15 +202,5 @@ int main(int argc, char const *argv[])
 	}
 	correct = ((float) correct/TEST);
 	printf("%f\n", correct);
- //    for(int i=0; i<HIDDINLAYERS+1; i++) {
-	// 	for (int j = 0; j < SIZE; ++j)
-	// 	{
-	// 		for (int l = 0; l < SIZE; ++l)
-	// 		{
-	// 			printf("%f ", weights[i][l+SIZE*j]);
-	// 		}
-	// 		printf("\n");
-	// 	}	
-	// }
 	return 0;
 }
