@@ -1,9 +1,9 @@
 all: src/plot
 
 NC=nvcc
-NCFLAGS=-O3 -arch=sm_30
+NCFLAGS=-arch=sm_30
 CC=gcc
-CCFLAGS=-O3
+CCFLAGS=
 GP=gnuplot
 GPFLAGS=
 

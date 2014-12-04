@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define SIZE 150
+#define SIZE 900
 #define HIDDINLAYERS 2
 #define POINTS 583
 #define TEST 100
@@ -32,24 +32,7 @@ __device__ __host__ float gPrime(float value){
 	float a = g(value);
 	return a;
 }
-
-__global__ void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inputLen, int outputsLen){
-	float temp;
-	// printf("Here\n");
-	for (int i = 0; i < outputsLen; ++i)
-	{
-		temp=0.0;
-		for (int j = 0; j < inputLen; ++j)
-		{
-			temp+=delta[j]*weights[j+SIZE*i];
-		}
-		
-		outputs[i] = gPrime(in[i])*temp;
-		// printf("%f\t%f\t%f\n", temp, in[i], outputs[i]);
-	}
-}
-
-__global__ void gLayer(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
+__host__ void gLayer2(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
 	for (int i = 0; i < outputsLen; ++i)
 	{
 		in[i]=0;
@@ -61,34 +44,73 @@ __global__ void gLayer(float *weights, float *values, float *outputs, float *in,
 		outputs[i] =g(in[i]);
 	}
 }
-
-__global__ void updateWeight(float *weights, float *values, float *delta, float learningRate, int inputLen, int outputLen){
-	for (int i = 0; i < outputLen; ++i)
+__global__ void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inputLen, int outputsLen){
+	float temp;
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+	while(i < outputsLen)
 	{
+		temp=0.0;
 		for (int j = 0; j < inputLen; ++j)
 		{
-			weights[j+SIZE*i]+= learningRate*values[i]*delta[j];
-			// printf("%f\t%f\n", weights[j+SIZE*i],learningRate*values[i]*delta[j]);
+			temp+=delta[j]*weights[j+SIZE*i];
 		}
+		
+		outputs[i] = gPrime(in[i])*temp;
+		i += gridDim.x*blockDim.x;
 	}
 }
 
+__global__ void gLayer(float *weights, float *values, float *outputs, float *in, float *bias, int weightsLen, int outputsLen){
+	float temp;
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+	while(i < outputsLen) {
+		temp=0;
+		for (int j = 0; j < weightsLen; ++j)
+		{
+			temp+= values[j]*weights[j+SIZE*i];
+		}
+		in[i] = temp+bias[i];
+		outputs[i] =g(in[i]);
+		i += gridDim.x*blockDim.x;
+	}
+}
 
+__global__ void updateWeight(float *weights, float *values, float *delta, float learningRate, int inputLen, int outputLen){
+	int i = threadIdx.x + blockDim.x * blockIdx.x;
+	int j = threadIdx.y + blockDim.y * blockIdx.y;
+	while(i < outputLen)
+	{
+		while (j < inputLen)
+		{
+			weights[j+SIZE*i]+= learningRate*values[i]*delta[j];
+			j += gridDim.y*blockDim.y;
+		}
+		j = threadIdx.y + blockDim.y * blockIdx.y;
+		i += gridDim.x*blockDim.x;
+	}
+}
+
+__global__ void deltaInit(float *delta, float *in, float *dataSet, float *values){
+	delta[0] = gPrime(in[0])*(dataSet[ATTRIBUTES-1]-values[0]);
+}
+
+__global__ void valueInit(float *values, float *dataSet, int i){
+	values[i] = dataSet[i];
+}
 
 int main(int argc, char const *argv[])
 {
 	FILE *fp=NULL, *inFile=NULL;
 	clock_t t;
 	srand (time(NULL));
-	float weights[(HIDDINLAYERS+1)*SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
-	float bias[(HIDDINLAYERS+1)*SIZE]; // all nodes other than the input layer
-	float values[(HIDDINLAYERS+2)*SIZE]; // holds the results of the last input
-	float in[(HIDDINLAYERS+1)*SIZE]; // values before squashing
-	float delta[(HIDDINLAYERS+1)*SIZE]; // error
-	float dataSet[(POINTS+TEST)*ATTRIBUTES]; // holds datafile
+	float weights[(HIDDINLAYERS+1)][SIZE*SIZE]; // each node in a layer conects to all nodes in the previous layer
+	float bias[(HIDDINLAYERS+1)][SIZE]; // all nodes other than the input layer
+	float values[(HIDDINLAYERS+2)][SIZE]; // holds the results of the last input
+	float in[(HIDDINLAYERS+1)][SIZE]; // values before squashing
+	float dataSet[(POINTS+TEST)][ATTRIBUTES]; // holds datafile
 	float learningRate = 0.3;
 	float learningTime = 50;
-	float *weights_d, *bias_d, *values_d, *in_d, *delta_d, *dataSet_d;
+	float *weights_d[(HIDDINLAYERS+1)], *bias_d[(HIDDINLAYERS+1)], *values_d[(HIDDINLAYERS+2)], *in_d[(HIDDINLAYERS+1)], *delta_d[(HIDDINLAYERS+1)], *dataSet_d[(POINTS+TEST)];
 
 	// read in data
 	inFile=fopen("data/breast-cancer-wisconsin.data","r");
@@ -96,6 +118,7 @@ int main(int argc, char const *argv[])
 	{
 		for (int j = 0; j < ATTRIBUTES; ++j)
 		{
+			// update indexes
 			fscanf(inFile,"%f",&(dataSet[i][j]));
 			if (j==ATTRIBUTES-1){
 				if (dataSet[i][j]==4.0) dataSet[i][j]=1.0;
@@ -132,74 +155,67 @@ int main(int argc, char const *argv[])
 			inputLen=SIZE;
 			if (i == HIDDINLAYERS) outputLen = 1; // result layer
 			if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
-			gLayer(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+			gLayer2(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
 		}
 		if (dataSet[j][ATTRIBUTES-1]==gSquash(values[HIDDINLAYERS+1][0])) correct += 1;
 	}
 	correct = ((float) correct/TEST);
 	printf("%f\n", correct);
 
-
-	t = clock();
-
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
-	//=========================================================================================================================================
 	// allocate space on device
-
-	HANDLE_ERROR(cudaMalloc((void **) &weights_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE));
-	HANDLE_ERROR(cudaMalloc((void **) &bias_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
-	HANDLE_ERROR(cudaMalloc((void **) &values_d, sizeof(float)*(HIDDINLAYERS+2)*SIZE));
-	HANDLE_ERROR(cudaMalloc((void **) &in_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
-	HANDLE_ERROR(cudaMalloc((void **) &delta_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE));
-	HANDLE_ERROR(cudaMalloc((void **) &dataSet_d, sizeof(float)*(POINTS+TEST)*ATTRIBUTES));
+	for (int i = 0; i < (HIDDINLAYERS+1); ++i)
+	{
+		HANDLE_ERROR(cudaMalloc((void **) &weights_d[i], sizeof(float)*SIZE*SIZE));
+		HANDLE_ERROR(cudaMemcpy(weights_d[i], weights[i], sizeof(float)*SIZE*SIZE, cudaMemcpyHostToDevice));		
+		HANDLE_ERROR(cudaMalloc((void **) &bias_d[i], sizeof(float)*SIZE));
+		HANDLE_ERROR(cudaMemcpy(bias_d[i], bias[i], sizeof(float)*SIZE, cudaMemcpyHostToDevice));
+		HANDLE_ERROR(cudaMalloc((void **) &in_d[i], sizeof(float)*SIZE));
+		HANDLE_ERROR(cudaMalloc((void **) &delta_d[i], sizeof(float)*SIZE));
 	
-	// mem copy
-	HANDLE_ERROR(cudaMemcpy(weights_d, weights, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpy(bias_d, bias, sizeof(float)*(HIDDINLAYERS+1)*SIZE, cudaMemcpyHostToDevice));
-	HANDLE_ERROR(cudaMemcpy(dataSet_d, dataSet, sizeof(float)*(POINTS+TEST)*ATTRIBUTES, cudaMemcpyHostToDevice));
+	}
+	for (int i = 0; i < (HIDDINLAYERS+2); ++i)
+	{
+		HANDLE_ERROR(cudaMalloc((void **) &values_d[i], sizeof(float)*SIZE));
+	}
+	for (int i = 0; i < (POINTS+TEST); ++i)
+	{
+		HANDLE_ERROR(cudaMalloc((void **) &dataSet_d[i], sizeof(float)*ATTRIBUTES));
+		HANDLE_ERROR(cudaMemcpy(dataSet_d[i], dataSet[i], sizeof(float)*ATTRIBUTES, cudaMemcpyHostToDevice));
+	}
 
-
+	printf("here\n");
 	// initailize kernal launches
-	dim3 dimBlock(32,1);
-    dim3 dimGrid (32,1);
+	dim3 dimBlock1(32,1);
+    dim3 dimGrid1(SIZE/32+1,1);
+    dim3 dimBlock2(1,1);
+    dim3 dimGrid2(1,1);
+    dim3 dimBlock3(16,16);
+    dim3 dimGrid3(SIZE/16+1,SIZE/16+1);
+    t = clock();
 	for (int timeStep=0; timeStep<learningTime; timeStep++) {
-		if (timeStep%50==0) printf("%d\n", timeStep);
+		
 		for (int point=0; point<POINTS; point++) {
-			
 
 			// get current data set
 			for (int i=0; i<ATTRIBUTES-1; i++) {
-				values[0][i] = dataSet[point][i];
+				valueInit<<<dimGrid2,dimBlock2>>>(values_d[0], dataSet_d[point], i);
+				HANDLE_ERROR(cudaGetLastError());
 			}
 
 			// forward prop
-			
 			for (int i = 0; i < HIDDINLAYERS+1; ++i)
 			{
 				outputLen=SIZE;
 				inputLen=SIZE;
 				if (i == HIDDINLAYERS) outputLen = 1; // result layer
 				if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
-
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				// set up launch
-				gLayer<<<dimGrid,dimBlock>>>(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+				gLayer<<<dimGrid1,dimBlock1>>>(weights_d[i], values_d[i], values_d[i+1], in_d[i], bias_d[i], inputLen, outputLen);
+				HANDLE_ERROR(cudaGetLastError());
 			}
 
 			// back prop 
-			
-			//=========================================================================================================================================
-			//=========================================================================================================================================
-			//=========================================================================================================================================
-			//=========================================================================================================================================
-			// fix this (make kernal for it)
-			delta[HIDDINLAYERS][0] = gPrime(in[HIDDINLAYERS][0])*(dataSet[point][ATTRIBUTES-1]-values[HIDDINLAYERS+1][0]); // error in output layer
+			deltaInit<<<dimGrid2,dimBlock2>>>(delta_d[HIDDINLAYERS], in_d[HIDDINLAYERS], dataSet_d[point], values_d[HIDDINLAYERS+1]);
+			HANDLE_ERROR(cudaGetLastError());
 
 			// error in pervious layers
 			
@@ -209,45 +225,50 @@ int main(int argc, char const *argv[])
 				inputLen=SIZE;
 				if (i == HIDDINLAYERS-1) outputLen = (ATTRIBUTES-1); // data set layer
 				if (i == 0) inputLen = 1; // result layer
-
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				// set up launch
-				gLayerBack<<<dimGrid,dimBlock>>>(weights[i+1], delta[i+1], delta[i], in[i], inputLen, outputLen);
+				gLayerBack<<<dimGrid1,dimBlock1>>>(weights_d[i+1], delta_d[i+1], delta_d[i], in_d[i], inputLen, outputLen);
+				HANDLE_ERROR(cudaGetLastError());
 			}
 
 			// update weights
 			for (int i = 0; i < HIDDINLAYERS+1; ++i)
 			{
-				outputLen=SIZE;
+				// printf("%d\n", i);
+				outputLen=SIZE; 
 				inputLen=SIZE;
 				if (i == HIDDINLAYERS) outputLen = 1; // result layer
 				if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
-
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				//=========================================================================================================================================
-				// set up launch
-				updateWeight<<<dimGrid,dimBlock>>>(weights[i], values[i], delta[i], learningRate, inputLen, outputLen);
+				updateWeight<<<dimGrid3,dimBlock3>>>(weights_d[i], values_d[i], delta_d[i], learningRate, inputLen, outputLen);
+				HANDLE_ERROR(cudaGetLastError());
 			}
 		}
 	}
+	t = clock() - t;
 	// mem copy 
-	HANDLE_ERROR(cudaMemcpy(weights, weights_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE*SIZE, cudaMemcpyDeviceToHost));
-	HANDLE_ERROR(cudaMemcpy(bias, bias_d, sizeof(float)*(HIDDINLAYERS+1)*SIZE, cudaMemcpyDeviceToHost));
-
+	for (int i = 0; i < (HIDDINLAYERS+1); ++i)
+	{
+		HANDLE_ERROR(cudaMemcpy(weights[i], weights_d[i], sizeof(float)*SIZE*SIZE, cudaMemcpyDeviceToHost));
+		// HANDLE_ERROR(cudaMemcpy(weights[i], weights_d[i], sizeof(float)*SIZE*SIZE, cudaMemcpyDeviceToHost));
+		HANDLE_ERROR(cudaMemcpy(bias[i], bias_d[i], sizeof(float)*SIZE, cudaMemcpyDeviceToHost));
+	}
 
 	// free pointers
-	HANDLE_ERROR(cudaFree(weights_d));
-	HANDLE_ERROR(cudaFree(bias_d));
-	HANDLE_ERROR(cudaFree(values_d));
-	HANDLE_ERROR(cudaFree(in_d));
-	HANDLE_ERROR(cudaFree(delta_d));
-	HANDLE_ERROR(cudaFree(dataSet_d));
-    t = clock() - t;
+	for (int i = 0; i < (HIDDINLAYERS+1); ++i)
+	{
+		HANDLE_ERROR(cudaFree(weights_d[i]));
+		HANDLE_ERROR(cudaFree(bias_d[i]));
+		HANDLE_ERROR(cudaFree(in_d[i]));
+		HANDLE_ERROR(cudaFree(delta_d[i]));	
+	}
+	for (int i = 0; i < (HIDDINLAYERS+2); ++i)
+	{
+		HANDLE_ERROR(cudaFree(values_d[i]));
+	}
+	for (int i = 0; i < (POINTS+TEST); ++i)
+	{
+		HANDLE_ERROR(cudaFree(dataSet_d[i]));
+	}
+	
+    
 
     // save runtime
 	fp=fopen("data/parallel.dat", "a");
@@ -264,7 +285,7 @@ int main(int argc, char const *argv[])
 			inputLen=SIZE;
 			if (i == HIDDINLAYERS) outputLen = 1; // result layer
 			if (i == 0) inputLen = (ATTRIBUTES-1); // data set layer
-			gLayer(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
+			gLayer2(weights[i], values[i], values[i+1], in[i], bias[i], inputLen, outputLen);
 		}
 		if (dataSet[j][ATTRIBUTES-1]==gSquash(values[HIDDINLAYERS+1][0])) correct += 1;
 	}

@@ -2,26 +2,16 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#define SIZE 150
+#define SIZE 900
 #define HIDDINLAYERS 2
 #define POINTS 583
 #define TEST 100
 #define ATTRIBUTES 10
+float g(float value);
+float gSquash(float value);
+float gPrime(float value);
 
 
-float g(float value) {
-	return 1.0/(1.0+exp(-value));
-}
-
-float gSquash(float value) {
-	if (value<0.5) return 0.0;
-	else return 1.0;
-}
-
-float gPrime(float value){
-	float a = g(value);
-	return a;
-}
 
 void gLayerBack(float *weights, float *delta, float *outputs, float *in, int inputLen, int outputsLen){
 	float temp;
@@ -51,14 +41,25 @@ void gLayer(float *weights, float *values, float *outputs, float *in, float *bia
 		outputs[i] =g(in[i]);
 	}
 }
+float g(float value) {
+	return 1.0/(1.0+exp(-value));
+}
 
+float gSquash(float value) {
+	if (value<0.5) return 0.0;
+	else return 1.0;
+}
+
+float gPrime(float value){
+	float a = g(value);
+	return a;
+}
 void updateWeight(float *weights, float *values, float *delta, float learningRate, int inputLen, int outputLen){
 	for (int i = 0; i < outputLen; ++i)
 	{
 		for (int j = 0; j < inputLen; ++j)
 		{
 			weights[j+SIZE*i]+= learningRate*values[i]*delta[j];
-			// printf("%f\t%f\n", weights[j+SIZE*i],learningRate*values[i]*delta[j]);
 		}
 	}
 }
